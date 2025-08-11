@@ -1,0 +1,23 @@
+
+# Git ignore file tailored for terraform
+
+# Terraform State Files
+
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+
+# Terraform Plan Files
+terraform/tfplan
+
+# Ignore crash logs and overide files
+terraform/crash.log
+terraform/*.tfvars
+terraform/*tfvars.json
+terraform/*override.tf
+terraform/*override.tf.json
+
+# Bash history / temp files
+*.swp
+*.swo
