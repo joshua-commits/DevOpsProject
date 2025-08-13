@@ -23,14 +23,10 @@ variable "environment" {
 	default	    = "dev"
 }
 
-variable "docker_username" {
-	description = "The username for the docker registry"
-	type	    = string
-	sensitive   = true
+variable "image_repo" {
+	default = "joshuacreates/hello-tested-api"
 }
 
-variable "docker_password" {
-	description = "The password for the docker registry"
-	type	    = string
-	sensitive   = true
+variable "image_tag" {
+	default = "latest"
 }

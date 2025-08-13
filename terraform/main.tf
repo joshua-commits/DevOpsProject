@@ -21,7 +21,64 @@ resource "azurerm_resource_group" "rg" {
   location = var.location
 }
 
-# 2. Create a service plan
+
+
+# ------------------------------------------------------------
+# Azure Container Registry
+# ------------------------------------------------------------
+
+
+resource "azurerm_container_registry" "acr" {
+  name                = "acr${var.environment}kdb"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  sku                 = "Basic"
+  admin_enabled       = false
+  
+}
+
+# ------------------------------------------------------------
+# User Assigned Managed Identity
+# ------------------------------------------------------------
+
+resource "azurerm_user_assigned_identity" "identity" {
+  name                = "identity-${var.environment}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+}
+
+
+# ------------------------------------------------------------
+# Grant the identity AcrPull on the ACR
+# ------------------------------------------------------------
+
+resource "azurerm_role_assignment" "acr_pull" {
+  principal_id         = azurerm_user_assigned_identity.identity.principal_id
+  role_definition_name = "AcrPull"
+  scope                = azurerm_container_registry.acr.id
+}
+
+
+
+
+# Automate docker image import from Docker Hub to ACR
+resource "null_resource" "import_image" {
+  depends_on = [azurerm_container_registry.acr]
+
+  provisioner "local-exec" {
+    command = <<EOT
+  az acr import --name ${azurerm_container_registry.acr.name} --source docker.io/${var.image_repo}:${var.image_tag} --image ${var.image_repo}:${var.image_tag}
+  EOT
+  }
+}
+
+
+
+
+
+# ------------------------------------------------------------
+# Azure Web App Service Plan
+# ------------------------------------------------------------
 resource "azurerm_service_plan" "plan" {
   name                = "plan-${var.environment}"
   resource_group_name = azurerm_resource_group.rg.name
@@ -30,40 +87,43 @@ resource "azurerm_service_plan" "plan" {
   sku_name            = "F1" 
 }
 
-# # 3. azure container registry
-# resource "azurerm_container_registry" "acr" {
-#   name                = "acr-${var.environment}"
-#   resource_group_name = azurerm_resource_group.rg.name
-#   location            = azurerm_resource_group.rg.location
-#   sku                 = "Basic"
-#   admin_enabled       = true
-#   admin_password      = "password"
-#   admin_username      = "admin"
-#   login_server        = "login-server"
-# }
 
-# 4. webapp
-resource "azurerm_linux_web_app" "webapp" {
+
+# ------------------------------------------------------------
+# Azure Web App
+# ------------------------------------------------------------
+
+  resource "azurerm_linux_web_app" "webapp" {
   name                = "webapp-${var.environment}-kdb"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   service_plan_id     = azurerm_service_plan.plan.id
-  
+
+  # Attach the User Assigned Managed Identity
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.identity.id]
+  }
+
   site_config {
     application_stack {
-      docker_image_name = "joshuacreates/hello-tested-api:latest"
-      docker_registry_url = "https://index.docker.io"
-      docker_registry_username = var.docker_username
-      docker_registry_password = var.docker_password
+      # Build the image name from registry + repo + tag
+      docker_image_name = "${trim(azurerm_container_registry.acr.login_server, "/")}/${var.image_repo}:${var.image_tag}"
     }
-      
 
-      always_on = false
+    always_on = false
   }
 
   app_settings = {
-  "DOCKER_ENABLE_CI"                = "true"
+    "DOCKER_ENABLE_CI"                  = "true"
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
+    "WEBSITES_PORT" = "5000"
+  }
+  depends_on = [
+    null_resource.import_image, # Ensures image is in ACR before deploy
+    azurerm_role_assignment.acr_pull
+  ]
 }
 
 
-}
+ 

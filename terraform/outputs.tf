@@ -17,3 +17,13 @@ output "webapp_name" {
     value = azurerm_linux_web_app.webapp.name
     description = "The name of the webapp"
 }
+
+output "acr_name" {
+    value = azurerm_container_registry.acr.name
+    description = "The name of the ACR"
+}
+
+output "acr_login_server" {
+    value = azurerm_container_registry.acr.login_server
+    description = "The login server of the ACR"
+}
