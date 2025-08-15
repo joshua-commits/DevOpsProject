@@ -1,10 +1,9 @@
-# We strongly recommend using the required_providers block to set the
-# Azure Provider source and version being used
+
 terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=4.1.0"
+      version = "~>4.3.0"
     }
   }
 }
@@ -15,7 +14,10 @@ provider "azurerm" {
   subscription_id = "24498a08-ef32-4d96-bf00-a59364945b9b"
 }
 
-# 1. Create a resource group
+# ------------------------------------------------------------
+# Azure Resource Group
+# ------------------------------------------------------------
+
 resource "azurerm_resource_group" "rg" {
   name     = "rg-${var.environment}"
   location = var.location
@@ -101,22 +103,21 @@ resource "azurerm_service_plan" "plan" {
 
   # Attach the User Assigned Managed Identity
   identity {
-    type         = "UserAssigned"
+    type         = "SystemAssigned"
     identity_ids = [azurerm_user_assigned_identity.identity.id]
   }
 
   site_config {
     application_stack {
       # Build the image name from registry + repo + tag
-      docker_image_name = "${trim(azurerm_container_registry.acr.login_server, "/")}/${var.image_repo}:${var.image_tag}"
+      docker_image_name = "${var.image_repo}:${var.image_tag}"
+      docker_registry_url = "https://${azurerm_container_registry.acr.login_server}"
     }
 
     always_on = false
   }
 
   app_settings = {
-    "DOCKER_ENABLE_CI"                  = "true"
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
     "WEBSITES_PORT" = "5000"
   }
   depends_on = [
